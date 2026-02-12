@@ -34,33 +34,83 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
-        const participantsList = details.participants.length
-          ? details.participants
-              .map(
-                (participant) => `
-                <li class="participant-item">
-                  <span class="participant-avatar">${getInitials(participant)}</span>
-                  <span class="participant-name">${participant}</span>
-                  <button class="delete-btn" data-participant="${participant}" data-activity="${name}" title="Remove participant">×</button>
-                </li>
-              `
-              )
-              .join("")
-          : "<li class=\"empty-participants\">No participants yet</li>";
 
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-          <div class="participants">
-            <p><strong>Participants:</strong></p>
-            <ul class="participants-list">
-              ${participantsList}
-            </ul>
-          </div>
-        `;
+        // Title
+        const titleEl = document.createElement("h4");
+        titleEl.textContent = name;
+        activityCard.appendChild(titleEl);
 
+        // Description
+        const descriptionEl = document.createElement("p");
+        descriptionEl.textContent = details.description;
+        activityCard.appendChild(descriptionEl);
+
+        // Schedule
+        const scheduleEl = document.createElement("p");
+        const scheduleStrong = document.createElement("strong");
+        scheduleStrong.textContent = "Schedule:";
+        scheduleEl.appendChild(scheduleStrong);
+        scheduleEl.appendChild(document.createTextNode(" " + details.schedule));
+        activityCard.appendChild(scheduleEl);
+
+        // Availability
+        const availabilityEl = document.createElement("p");
+        const availabilityStrong = document.createElement("strong");
+        availabilityStrong.textContent = "Availability:";
+        availabilityEl.appendChild(availabilityStrong);
+        availabilityEl.appendChild(
+          document.createTextNode(" " + spotsLeft + " spots left")
+        );
+        activityCard.appendChild(availabilityEl);
+
+        // Participants section
+        const participantsDiv = document.createElement("div");
+        participantsDiv.className = "participants";
+
+        const participantsTitle = document.createElement("p");
+        const participantsStrong = document.createElement("strong");
+        participantsStrong.textContent = "Participants:";
+        participantsTitle.appendChild(participantsStrong);
+        participantsDiv.appendChild(participantsTitle);
+
+        const participantsListEl = document.createElement("ul");
+        participantsListEl.className = "participants-list";
+
+        if (details.participants.length) {
+          details.participants.forEach((participant) => {
+            const li = document.createElement("li");
+            li.className = "participant-item";
+
+            const avatarSpan = document.createElement("span");
+            avatarSpan.className = "participant-avatar";
+            avatarSpan.textContent = getInitials(participant);
+            li.appendChild(avatarSpan);
+
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "participant-name";
+            nameSpan.textContent = participant;
+            li.appendChild(nameSpan);
+
+            const deleteButton = document.createElement("button");
+            deleteButton.className = "delete-btn";
+            deleteButton.type = "button";
+            deleteButton.dataset.participant = participant;
+            deleteButton.dataset.activity = name;
+            deleteButton.title = "Remove participant";
+            deleteButton.textContent = "×";
+            li.appendChild(deleteButton);
+
+            participantsListEl.appendChild(li);
+          });
+        } else {
+          const emptyLi = document.createElement("li");
+          emptyLi.className = "empty-participants";
+          emptyLi.textContent = "No participants yet";
+          participantsListEl.appendChild(emptyLi);
+        }
+
+        participantsDiv.appendChild(participantsListEl);
+        activityCard.appendChild(participantsDiv);
         activitiesList.appendChild(activityCard);
 
         // Add option to select dropdown
