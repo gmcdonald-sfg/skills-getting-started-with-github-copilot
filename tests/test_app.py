@@ -4,15 +4,8 @@ Tests for the Mergington High School Activities API
 
 import pytest
 from fastapi.testclient import TestClient
-import sys
-import os
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from app import app
-
-
+from src.app import app
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app"""
