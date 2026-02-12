@@ -4,13 +4,21 @@ Tests for the Mergington High School Activities API
 
 import pytest
 from fastapi.testclient import TestClient
-import sys
-import os
+from urllib.parse import quote
+from copy import deepcopy
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from app import app, activities
 
-from app import app
+# Store the original activities state
+_original_activities = deepcopy(activities)
+
+
+@pytest.fixture(autouse=True)
+def reset_activities():
+    """Reset activities to original state before each test"""
+    activities.clear()
+    activities.update(deepcopy(_original_activities))
+    yield
 
 
 @pytest.fixture
@@ -63,8 +71,9 @@ class TestSignup:
 
     def test_signup_new_participant(self, client):
         """Test signing up a new participant to an activity"""
+        activity = "Chess Club"
         response = client.post(
-            "/activities/Chess Club/signup?email=newstudent@mergington.edu"
+            f"/activities/{quote(activity)}/signup?email=newstudent@mergington.edu"
         )
         assert response.status_code == 200
         
@@ -76,24 +85,26 @@ class TestSignup:
     def test_signup_duplicate_participant_fails(self, client):
         """Test that signing up the same participant twice fails"""
         email = "duplicate@mergington.edu"
+        activity = "Chess Club"
         
         # First signup should succeed
         response1 = client.post(
-            f"/activities/Chess Club/signup?email={email}"
+            f"/activities/{quote(activity)}/signup?email={email}"
         )
         assert response1.status_code == 200
         
         # Second signup should fail
         response2 = client.post(
-            f"/activities/Chess Club/signup?email={email}"
+            f"/activities/{quote(activity)}/signup?email={email}"
         )
         assert response2.status_code == 400
         assert "already signed up" in response2.json()["detail"]
 
     def test_signup_nonexistent_activity_fails(self, client):
         """Test that signing up for a nonexistent activity fails"""
+        activity = "Nonexistent Activity"
         response = client.post(
-            "/activities/Nonexistent Activity/signup?email=test@mergington.edu"
+            f"/activities/{quote(activity)}/signup?email=test@mergington.edu"
         )
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -108,7 +119,7 @@ class TestSignup:
         before_count = len(response_before.json()[activity]["participants"])
         
         # Sign up
-        client.post(f"/activities/{activity}/signup?email={email}")
+        client.post(f"/activities/{quote(activity)}/signup?email={email}")
         
         # Get updated count
         response_after = client.get("/activities")
@@ -116,6 +127,32 @@ class TestSignup:
         
         assert after_count == before_count + 1
         assert email in response_after.json()[activity]["participants"]
+
+    def test_signup_fails_when_activity_is_full(self, client):
+        """Test that signup fails when activity is at max capacity"""
+        activity = "Tennis Club"
+        
+        # Get current activity state
+        response = client.get("/activities")
+        activity_data = response.json()[activity]
+        max_participants = activity_data["max_participants"]
+        current_count = len(activity_data["participants"])
+        
+        # Fill up remaining spots
+        spots_to_fill = max_participants - current_count
+        for i in range(spots_to_fill):
+            email = f"filler{i}@mergington.edu"
+            response = client.post(
+                f"/activities/{quote(activity)}/signup?email={email}"
+            )
+            assert response.status_code == 200
+        
+        # Try to sign up one more person - should fail
+        response = client.post(
+            f"/activities/{quote(activity)}/signup?email=overflow@mergington.edu"
+        )
+        assert response.status_code == 400
+        assert "full" in response.json()["detail"].lower()
 
 
 class TestUnregister:
@@ -127,11 +164,11 @@ class TestUnregister:
         activity = "Debate Club"
         
         # First, sign up
-        client.post(f"/activities/{activity}/signup?email={email}")
+        client.post(f"/activities/{quote(activity)}/signup?email={email}")
         
         # Then unregister
         response = client.post(
-            f"/activities/{activity}/unregister?email={email}"
+            f"/activities/{quote(activity)}/unregister?email={email}"
         )
         assert response.status_code == 200
         
@@ -143,17 +180,19 @@ class TestUnregister:
     def test_unregister_nonexistent_participant_fails(self, client):
         """Test that unregistering a participant not in the activity fails"""
         email = "never_signed_up@mergington.edu"
+        activity = "Chess Club"
         
         response = client.post(
-            f"/activities/Chess Club/unregister?email={email}"
+            f"/activities/{quote(activity)}/unregister?email={email}"
         )
         assert response.status_code == 400
         assert "not signed up" in response.json()["detail"]
 
     def test_unregister_nonexistent_activity_fails(self, client):
         """Test that unregistering from a nonexistent activity fails"""
+        activity = "Fake Activity"
         response = client.post(
-            "/activities/Fake Activity/unregister?email=test@mergington.edu"
+            f"/activities/{quote(activity)}/unregister?email=test@mergington.edu"
         )
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -164,14 +203,14 @@ class TestUnregister:
         activity = "Robotics Club"
         
         # Sign up
-        client.post(f"/activities/{activity}/signup?email={email}")
+        client.post(f"/activities/{quote(activity)}/signup?email={email}")
         
         # Verify they're in the list
         response_before = client.get("/activities")
         assert email in response_before.json()[activity]["participants"]
         
         # Unregister
-        client.post(f"/activities/{activity}/unregister?email={email}")
+        client.post(f"/activities/{quote(activity)}/unregister?email={email}")
         
         # Verify they're no longer in the list
         response_after = client.get("/activities")
@@ -192,7 +231,7 @@ class TestIntegration:
         
         # Sign up
         signup_response = client.post(
-            f"/activities/{activity}/signup?email={email}"
+            f"/activities/{quote(activity)}/signup?email={email}"
         )
         assert signup_response.status_code == 200
         
@@ -203,7 +242,7 @@ class TestIntegration:
         
         # Unregister
         unregister_response = client.post(
-            f"/activities/{activity}/unregister?email={email}"
+            f"/activities/{quote(activity)}/unregister?email={email}"
         )
         assert unregister_response.status_code == 200
         
@@ -220,7 +259,7 @@ class TestIntegration:
         # Sign up all
         for email in emails:
             response = client.post(
-                f"/activities/{activity}/signup?email={email}"
+                f"/activities/{quote(activity)}/signup?email={email}"
             )
             assert response.status_code == 200
         
@@ -233,7 +272,7 @@ class TestIntegration:
         # Unregister all
         for email in emails:
             response = client.post(
-                f"/activities/{activity}/unregister?email={email}"
+                f"/activities/{quote(activity)}/unregister?email={email}"
             )
             assert response.status_code == 200
         
